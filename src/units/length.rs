@@ -2,7 +2,7 @@ use crate::units::{Unit, UnitType};
 
 pub fn init() -> UnitType {
     UnitType {
-        name: String::from("Lengths"),
+        name: String::from("Length"),
         units: vec![
             Unit {
                 name: String::from("Centimetre"),

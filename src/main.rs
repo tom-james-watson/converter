@@ -1,18 +1,15 @@
-use std::fs;
-use std::path::PathBuf;
-
 use glib::types::Type;
 use gtk::{BoxExt, CellLayoutExt, ComboBox, ComboBoxExt, ContainerExt, GtkWindowExt, Inhibit, TreeModelExt, TreeStoreExt, WidgetExt, Window, WindowType, prelude::TreeStoreExtManual};
 use gtk::Orientation::{Horizontal, Vertical};
 use relm::{connect, Relm, Update, Widget};
 use relm_derive::Msg;
-
-use units::lengths;
+use units::{length, mass};
+use crate::units::UnitType;
 
 mod units;
 
-struct Directory {
-    current_dir: PathBuf,
+struct Converter {
+    unit_types: Vec<UnitType>,
 }
 
 #[derive(Msg)]
@@ -24,20 +21,24 @@ enum Msg {
 
 struct Win {
     from_combo: ComboBox,
-    model: Directory,
+    model: Converter,
     to_combo: ComboBox,
     window: Window,
 }
 
 impl Update for Win {
-    type Model = Directory;
+    type Model = Converter;
     type ModelParam = ();
     type Msg = Msg;
 
-    fn model(_: &Relm<Self>, _: ()) -> Directory {
-        let working_directory = fs::canonicalize(".").expect("Failed to open directory");
-        Directory {
-            current_dir: working_directory,
+    fn model(_: &Relm<Self>, _: ()) -> Converter {
+        let unit_types: Vec<UnitType> = vec![
+            length::init(),
+            mass::init(),
+        ];
+
+        Converter {
+            unit_types,
         }
     }
 
@@ -133,15 +134,15 @@ impl Widget for Win {
         window.set_position(gtk::WindowPosition::Center);
         window.set_default_size(550, 300);
 
-        let from_model = create_and_fill_model();
-        let from_combo = ComboBox::with_model(&from_model);
+        let from_store = create_from_store(&model);
+        let from_combo = ComboBox::with_model(&from_store);
         from_combo.set_entry_text_column(0);
         from_combo.pack_start(&cell, true);
         from_combo.add_attribute(&cell, "text", 0);
         hbox.pack_start(&from_combo, true, true, 0);
 
-        let to_model = create_and_fill_model();
-        let to_combo = ComboBox::with_model(&to_model);
+        let to_store = create_and_fill_model();
+        let to_combo = ComboBox::with_model(&to_store);
         to_combo.set_entry_text_column(0);
         to_combo.pack_start(&cell, true);
         to_combo.add_attribute(&cell, "text", 0);
@@ -170,24 +171,40 @@ impl Widget for Win {
     }
 }
 
-fn create_and_fill_model() -> gtk::TreeStore {
-    let model = gtk::TreeStore::new(&[Type::String, Type::U64]);
+fn create_from_store(model: &Converter) -> gtk::TreeStore {
+    let store = gtk::TreeStore::new(&[Type::String, Type::U64]);
 
-    for i in 1..4 {
-        let top = model.append(None);
-        model.set(&top, &[0], &[&format!("upper {}", i)]);
-        model.set(&top, &[1], &[&45]);
-        for j in 1..6 {
-            let entries = model.append(Some(&top));
-            model.set(&entries, &[0], &[&format!("lower {}", j)]);
-            model.set(&entries, &[1], &[&55]);
+    for unit_type in model.unit_types.iter() {
+        let top = store.append(None);
+        store.set(&top, &[0], &[&format!("{}", unit_type.name)]);
+        store.set(&top, &[1], &[&45]);
+        for unit in unit_type.units.iter() {
+            let entries = store.append(Some(&top));
+            store.set(&entries, &[0], &[&format!("{}", unit.name)]);
+            store.set(&entries, &[1], &[&55]);
         }
     }
-    model
+    store
+}
+
+fn create_and_fill_model() -> gtk::TreeStore {
+    let store = gtk::TreeStore::new(&[Type::String, Type::U64]);
+
+    for i in 1..4 {
+        let top = store.append(None);
+        store.set(&top, &[0], &[&format!("upper {}", i)]);
+        store.set(&top, &[1], &[&45]);
+        for j in 1..6 {
+            let entries = store.append(Some(&top));
+            store.set(&entries, &[0], &[&format!("lower {}", j)]);
+            store.set(&entries, &[1], &[&55]);
+        }
+    }
+    store
 }
 
 fn main() {
-    let lengths_units = lengths::init();
+    let lengths_units = length::init();
     dbg!(lengths_units.name);
     dbg!(lengths_units.units[0].convert(50.0, &lengths_units.units[2]));
     Win::run(()).expect("Win::run failed");

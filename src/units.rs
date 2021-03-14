@@ -1,4 +1,5 @@
-pub mod lengths;
+pub mod length;
+pub mod mass;
 
 pub struct UnitType {
     pub name: String,
