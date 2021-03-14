@@ -3,8 +3,7 @@ use gtk::{BoxExt, CellLayoutExt, ComboBox, ComboBoxExt, ContainerExt, GtkWindowE
 use gtk::Orientation::{Horizontal, Vertical};
 use relm::{connect, Relm, Update, Widget};
 use relm_derive::Msg;
-use units::{length, mass};
-use crate::units::UnitType;
+use units::{UnitType, Unit, length, mass};
 
 mod units;
 
@@ -47,12 +46,18 @@ impl Update for Win {
             Msg::FromComboChanged => {
                 let iter = self.from_combo.get_active_iter().unwrap();
                 let model = self.from_combo.get_model().unwrap();
-                let val = model.get_value(&iter, 0);
-                let got: &str = val.get().unwrap().unwrap();
-                let val2 = model.get_value(&iter, 1);
-                let got2: u64 = val2.get().unwrap().unwrap();
-                dbg!(got);
-                dbg!(got2);
+
+                let val0 = model.get_value(&iter, 0);
+                let unit_name: &str = val0.get().unwrap().unwrap();
+                let val1 = model.get_value(&iter, 1);
+                let unit_type_name: &str = val1.get().unwrap().unwrap();
+
+                let unit_type = find_unit_type_by_name(&self.model.unit_types, unit_type_name);
+                let unit = find_unit_by_name(unit_type, unit_name);
+
+                dbg!(&unit_type.name);
+                dbg!(&unit.name);
+
                 // print!(model.get_value(&iter, 1);
 
                 // let iter = self.from_combo.get_active_iter();
@@ -172,19 +177,26 @@ impl Widget for Win {
 }
 
 fn create_from_store(model: &Converter) -> gtk::TreeStore {
-    let store = gtk::TreeStore::new(&[Type::String, Type::U64]);
+    let store = gtk::TreeStore::new(&[Type::String, Type::String]);
 
     for unit_type in model.unit_types.iter() {
         let top = store.append(None);
         store.set(&top, &[0], &[&format!("{}", unit_type.name)]);
-        store.set(&top, &[1], &[&45]);
         for unit in unit_type.units.iter() {
             let entries = store.append(Some(&top));
             store.set(&entries, &[0], &[&format!("{}", unit.name)]);
-            store.set(&entries, &[1], &[&55]);
+            store.set(&entries, &[1], &[&format!("{}", unit_type.name)]);
         }
     }
     store
+}
+
+fn find_unit_type_by_name<'a>(unit_types: &'a Vec<UnitType>, name: &str) -> &'a UnitType {
+    unit_types.iter().find(|unit_type| unit_type.name == name).unwrap()
+}
+
+fn find_unit_by_name<'a>(unit_type: &'a UnitType, name: &str) -> &'a Unit {
+    unit_type.units.iter().find(|unit| unit.name == name).unwrap()
 }
 
 fn create_and_fill_model() -> gtk::TreeStore {
