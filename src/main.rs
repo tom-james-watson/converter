@@ -2,11 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use glib::types::Type;
-use gtk::{
-    prelude::TreeStoreExtManual, CellLayoutExt, ComboBox, ComboBoxExt, ContainerExt, GtkWindowExt,
-    Inhibit, TreeModelExt, WidgetExt, Window, WindowType,
-};
-use gtk::{Orientation::Vertical, TreeStoreExt};
+use gtk::{BoxExt, CellLayoutExt, ComboBox, ComboBoxExt, ContainerExt, GtkWindowExt, Inhibit, TreeModelExt, TreeStoreExt, WidgetExt, Window, WindowType, prelude::TreeStoreExtManual};
+use gtk::Orientation::{Horizontal, Vertical};
 use relm::{connect, Relm, Update, Widget};
 use relm_derive::Msg;
 
@@ -20,13 +17,15 @@ struct Directory {
 
 #[derive(Msg)]
 enum Msg {
-    ItemSelect,
+    FromComboChanged,
     Quit,
+    ToComboChanged,
 }
 
 struct Win {
-    combo_box: ComboBox,
+    from_combo: ComboBox,
     model: Directory,
+    to_combo: ComboBox,
     window: Window,
 }
 
@@ -44,13 +43,9 @@ impl Update for Win {
 
     fn update(&mut self, event: Msg) {
         match event {
-            Msg::ItemSelect => {
-                // comboBox.GetActiveIter(out tree);
-                // TreeModel = comboBox.Model ();
-                // String selectedText = (String) comboBox.Model.GetValue (tree, 0);
-
-                let iter = self.combo_box.get_active_iter().unwrap();
-                let model = self.combo_box.get_model().unwrap();
+            Msg::FromComboChanged => {
+                let iter = self.from_combo.get_active_iter().unwrap();
+                let model = self.from_combo.get_model().unwrap();
                 let val = model.get_value(&iter, 0);
                 let got: &str = val.get().unwrap().unwrap();
                 let val2 = model.get_value(&iter, 1);
@@ -59,8 +54,8 @@ impl Update for Win {
                 dbg!(got2);
                 // print!(model.get_value(&iter, 1);
 
-                // let iter = self.combo_box.get_active_iter();
-                // let model = self.combo_box.get_model();
+                // let iter = self.from_combo.get_active_iter();
+                // let model = self.from_combo.get_model();
                 // model.get_or_insert(value)
                 // from_combo.get_model ().get (from_iter, 2, out from_unit, -1);
 
@@ -106,6 +101,16 @@ impl Update for Win {
                 // }
             }
             Msg::Quit => gtk::main_quit(),
+            Msg::ToComboChanged => {
+                let iter = self.to_combo.get_active_iter().unwrap();
+                let model = self.to_combo.get_model().unwrap();
+                let val = model.get_value(&iter, 0);
+                let got: &str = val.get().unwrap().unwrap();
+                let val2 = model.get_value(&iter, 1);
+                let got2: u64 = val2.get().unwrap().unwrap();
+                dbg!(got);
+                dbg!(got2);
+            }
         }
     }
 }
@@ -119,30 +124,36 @@ impl Widget for Win {
 
     fn view(relm: &Relm<Self>, model: Self::Model) -> Self {
         let window = gtk::Window::new(WindowType::Toplevel);
-        let vbox = gtk::Box::new(Vertical, 0);
+        let vbox = gtk::Box::new(Vertical, 10);
+        let hbox = gtk::Box::new(Horizontal, 10);
         let cell = gtk::CellRendererText::new();
 
-        window.set_title("TreeView example file browser");
+        window.set_title("Converter");
         window.set_border_width(10);
         window.set_position(gtk::WindowPosition::Center);
-        window.set_default_size(350, 70);
+        window.set_default_size(550, 300);
 
-        let store_model = create_and_fill_model();
-        let combo_box = ComboBox::with_model(&store_model);
-        combo_box.set_entry_text_column(0);
+        let from_model = create_and_fill_model();
+        let from_combo = ComboBox::with_model(&from_model);
+        from_combo.set_entry_text_column(0);
+        from_combo.pack_start(&cell, true);
+        from_combo.add_attribute(&cell, "text", 0);
+        hbox.pack_start(&from_combo, true, true, 0);
 
-        combo_box.pack_start(&cell, true);
-        combo_box.add_attribute(&cell, "text", 0);
+        let to_model = create_and_fill_model();
+        let to_combo = ComboBox::with_model(&to_model);
+        to_combo.set_entry_text_column(0);
+        to_combo.pack_start(&cell, true);
+        to_combo.add_attribute(&cell, "text", 0);
+        hbox.pack_start(&to_combo, true, true, 0);
 
-        vbox.add(&combo_box);
+        vbox.pack_start(&hbox, false, true, 0);
         window.add(&vbox);
 
         window.show_all();
 
-        combo_box.connect_changed(|ref dropdown| {
-            dbg!(dropdown.get_active_id());
-        });
-        connect!(relm, combo_box, connect_changed(_), Msg::ItemSelect);
+        connect!(relm, from_combo, connect_changed(_), Msg::FromComboChanged);
+        connect!(relm, to_combo, connect_changed(_), Msg::ToComboChanged);
         connect!(
             relm,
             window,
@@ -151,8 +162,9 @@ impl Widget for Win {
         );
 
         Win {
-            combo_box,
+            from_combo,
             model,
+            to_combo,
             window,
         }
     }
