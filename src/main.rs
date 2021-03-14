@@ -9,6 +9,7 @@ mod units;
 
 struct Converter {
     unit_types: Vec<UnitType>,
+    unit_type_idx: usize,
 }
 
 #[derive(Msg)]
@@ -35,9 +36,11 @@ impl Update for Win {
             length::init(),
             mass::init(),
         ];
+        let unit_type_idx: usize = 0;
 
         Converter {
             unit_types,
+            unit_type_idx,
         }
     }
 
@@ -45,15 +48,17 @@ impl Update for Win {
         match event {
             Msg::FromComboChanged => {
                 let iter = self.from_combo.get_active_iter().unwrap();
-                let model = self.from_combo.get_model().unwrap();
+                let from_model = self.from_combo.get_model().unwrap();
 
-                let val0 = model.get_value(&iter, 0);
-                let unit_name: &str = val0.get().unwrap().unwrap();
-                let val1 = model.get_value(&iter, 1);
-                let unit_type_name: &str = val1.get().unwrap().unwrap();
+                let val0 = from_model.get_value(&iter, 0);
+                let from_unit_name: &str = val0.get().unwrap().unwrap();
+                let val1 = from_model.get_value(&iter, 1);
+                let from_unit_type_idx: u64 = val1.get().unwrap().unwrap();
+                let val2 = from_model.get_value(&iter, 2);
+                let from_unit_idx: u64 = val2.get().unwrap().unwrap();
 
-                let unit_type = find_unit_type_by_name(&self.model.unit_types, unit_type_name);
-                let unit = find_unit_by_name(unit_type, unit_name);
+                let unit_type: &UnitType = &self.model.unit_types[from_unit_type_idx as usize];
+                let unit: &Unit = &unit_type.units[from_unit_idx as usize];
 
                 dbg!(&unit_type.name);
                 dbg!(&unit.name);
@@ -146,7 +151,7 @@ impl Widget for Win {
         from_combo.add_attribute(&cell, "text", 0);
         hbox.pack_start(&from_combo, true, true, 0);
 
-        let to_store = create_and_fill_model();
+        let to_store = create_to_store(&model);
         let to_combo = ComboBox::with_model(&to_store);
         to_combo.set_entry_text_column(0);
         to_combo.pack_start(&cell, true);
@@ -177,16 +182,30 @@ impl Widget for Win {
 }
 
 fn create_from_store(model: &Converter) -> gtk::TreeStore {
-    let store = gtk::TreeStore::new(&[Type::String, Type::String]);
+    let store = gtk::TreeStore::new(&[Type::String, Type::U64, Type::U64]);
 
-    for unit_type in model.unit_types.iter() {
+    for (unit_type_idx, unit_type) in model.unit_types.iter().enumerate() {
         let top = store.append(None);
         store.set(&top, &[0], &[&format!("{}", unit_type.name)]);
-        for unit in unit_type.units.iter() {
+
+        for (unit_idx, unit) in unit_type.units.iter().enumerate() {
             let entries = store.append(Some(&top));
             store.set(&entries, &[0], &[&format!("{}", unit.name)]);
-            store.set(&entries, &[1], &[&format!("{}", unit_type.name)]);
+            store.set(&entries, &[1], &[&(unit_type_idx as u64)]);
+            store.set(&entries, &[2], &[&(unit_idx as u64)]);
         }
+    }
+    store
+}
+
+fn create_to_store(model: &Converter) -> gtk::TreeStore {
+    let store = gtk::TreeStore::new(&[Type::String, Type::U64]);
+
+    let from_unit_type: &UnitType = &model.unit_types[model.unit_type_idx];
+    for (unit_idx, unit) in from_unit_type.units.iter().enumerate() {
+        let entries = store.append(None);
+        store.set(&entries, &[0], &[&format!("{}", unit.name)]);
+        store.set(&entries, &[1], &[&(unit_idx as u64)]);
     }
     store
 }
