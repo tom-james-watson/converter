@@ -5,17 +5,17 @@ pub fn init() -> UnitType {
         name: String::from("Length"),
         units: vec![
             Unit {
-                name: String::from("Centimetre"),
+                name: String::from("Centimetres"),
                 abbreviation: String::from("cm"),
                 factor: 0.01,
             },
             Unit {
-                name: String::from("Metre"),
+                name: String::from("Metres"),
                 abbreviation: String::from("m"),
                 factor: 1.0,
             },
             Unit {
-                name: String::from("Kilometre"),
+                name: String::from("Kilometres"),
                 abbreviation: String::from("km"),
                 factor: 1000.0,
             },

@@ -5,12 +5,12 @@ pub fn init() -> UnitType {
         name: String::from("Mass"),
         units: vec![
             Unit {
-                name: String::from("Gram"),
+                name: String::from("Grams"),
                 abbreviation: String::from("g"),
-                factor: 0.01,
+                factor: 0.001,
             },
             Unit {
-                name: String::from("Kilogram"),
+                name: String::from("Kilograms"),
                 abbreviation: String::from("kg"),
                 factor: 1.0,
             },
