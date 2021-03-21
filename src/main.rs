@@ -271,7 +271,7 @@ impl Win {
                 units[self.model.from_unit_idx]
                     .convert_as_string(from_value, &units[self.model.to_unit_idx])
             }
-            Some(Err(_)) => String::from("test"),
+            Some(Err(_)) => String::from("-"),
         }
     }
 
@@ -294,7 +294,7 @@ impl Win {
                 units[self.model.to_unit_idx]
                     .convert_as_string(to_value, &units[self.model.from_unit_idx])
             }
-            Some(Err(_)) => String::from("test"),
+            Some(Err(_)) => String::from("-"),
         }
     }
 
