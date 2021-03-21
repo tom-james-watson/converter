@@ -16,7 +16,7 @@ use units::{length, mass, UnitType};
 
 mod units;
 
-const SPACING: u32 = 10;
+const SPACING: i32 = 10;
 
 struct Converter {
     unit_types: Vec<UnitType>,
@@ -38,6 +38,7 @@ enum Msg {
 }
 
 struct Win {
+    cmd_entry: Entry,
     from_combo: ComboBox,
     from_entry: Entry,
     model: Converter,
@@ -144,17 +145,17 @@ impl Widget for Win {
 
     fn view(relm: &Relm<Self>, model: Self::Model) -> Self {
         let window = gtk::Window::new(WindowType::Toplevel);
-        let vbox = gtk::Box::new(Vertical, SPACING as i32);
+        let vbox = gtk::Box::new(Vertical, SPACING * 2);
         let grid = gtk::Grid::new();
         grid.set_orientation(Horizontal);
         grid.set_row_homogeneous(true);
         grid.set_column_homogeneous(true);
-        grid.set_row_spacing(SPACING);
-        grid.set_column_spacing(SPACING);
+        grid.set_row_spacing(SPACING as u32);
+        grid.set_column_spacing(SPACING as u32);
         let cell = gtk::CellRendererText::new();
 
         window.set_title("Converter");
-        window.set_border_width(SPACING);
+        window.set_border_width((SPACING * 2) as u32);
         window.set_position(gtk::WindowPosition::Center);
         // window.set_default_size(550, 300);
 
@@ -177,6 +178,7 @@ impl Widget for Win {
         grid.attach(&from_combo, 1, 2, 1, 1);
 
         let from_entry = gtk::Entry::new();
+        from_entry.set_placeholder_text(Some("From"));
         grid.attach(&from_entry, 1, 3, 1, 1);
 
         let to_model = Self::create_units_model(&model);
@@ -188,12 +190,22 @@ impl Widget for Win {
         grid.attach(&to_combo, 2, 2, 1, 1);
 
         let to_entry = gtk::Entry::new();
+        to_entry.set_placeholder_text(Some("To"));
         grid.attach(&to_entry, 2, 3, 1, 1);
         vbox.pack_start(&grid, false, true, 0);
+
+        let hsep = gtk::Separator::new(Horizontal);
+        vbox.pack_start(&hsep, false, true, 0);
+
+        let cmd_entry = gtk::Entry::new();
+        cmd_entry.set_placeholder_text(Some("e.g. 15ft in m"));
+        vbox.pack_start(&cmd_entry, true, true, 0);
 
         window.add(&vbox);
 
         window.show_all();
+
+        cmd_entry.grab_focus();
 
         connect!(relm, from_entry, connect_changed(_), Msg::FromEntryChanged);
         connect!(relm, from_combo, connect_changed(_), Msg::FromComboChanged);
@@ -213,6 +225,7 @@ impl Widget for Win {
         );
 
         Win {
+            cmd_entry,
             from_combo,
             from_entry,
             model,
@@ -253,9 +266,10 @@ impl Win {
     fn get_to_value(&self) -> String {
         match self.model.from_value {
             None => String::from(""),
-            Some(Ok(v)) => {
+            Some(Ok(from_value)) => {
                 let units = &self.model.unit_types[self.model.unit_type_idx].units;
-                units[self.model.from_unit_idx].convert_as_string(v, &units[self.model.to_unit_idx])
+                units[self.model.from_unit_idx]
+                    .convert_as_string(from_value, &units[self.model.to_unit_idx])
             }
             Some(Err(_)) => String::from("test"),
         }
@@ -268,14 +282,17 @@ impl Win {
         if current_to_value.parse::<f64>() != to_value.parse::<f64>() {
             self.to_entry.set_text(to_value);
         }
+
+        self.write_cmd();
     }
 
     fn get_from_value(&self) -> String {
         match self.model.to_value {
             None => String::from(""),
-            Some(Ok(v)) => {
+            Some(Ok(to_value)) => {
                 let units = &self.model.unit_types[self.model.unit_type_idx].units;
-                units[self.model.to_unit_idx].convert_as_string(v, &units[self.model.from_unit_idx])
+                units[self.model.to_unit_idx]
+                    .convert_as_string(to_value, &units[self.model.from_unit_idx])
             }
             Some(Err(_)) => String::from("test"),
         }
@@ -288,6 +305,23 @@ impl Win {
         if current_from_value.parse::<f64>() != from_value.parse::<f64>() {
             self.from_entry.set_text(from_value);
         }
+
+        self.write_cmd();
+    }
+
+    fn write_cmd(&self) {
+        match self.model.from_value {
+            Some(Ok(from_value)) => {
+                let units = &self.model.unit_types[self.model.unit_type_idx].units;
+                self.cmd_entry.set_text(&format!(
+                    "{}{} in {}",
+                    &from_value,
+                    units[self.model.from_unit_idx].abbreviation,
+                    units[self.model.to_unit_idx].abbreviation
+                ));
+            }
+            _ => {}
+        };
     }
 }
 
