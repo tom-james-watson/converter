@@ -181,7 +181,7 @@ impl Win {
 
             for (unit_idx, unit) in unit_type.units.iter().enumerate() {
                 let entries = store.append(Some(&top));
-                store.set(&entries, &[0], &[&unit.name]);
+                store.set(&entries, &[0], &[&unit.get_title()]);
                 store.set(&entries, &[1], &[&(unit_type_idx as u64)]);
                 store.set(&entries, &[2], &[&(unit_idx as u64)]);
             }
@@ -195,7 +195,7 @@ impl Win {
 
         for (unit_idx, unit) in from_unit_type.units.iter().enumerate() {
             let entries = store.append(None);
-            store.set(&entries, &[0], &[&unit.name]);
+            store.set(&entries, &[0], &[&unit.get_title()]);
             store.set(&entries, &[1], &[&(unit_idx as u64)]);
         }
         store

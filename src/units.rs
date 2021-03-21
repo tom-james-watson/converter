@@ -16,4 +16,8 @@ impl Unit {
     pub fn convert(&self, value: f64, to: &Unit) -> f64 {
         value * self.factor / to.factor
     }
+
+    pub fn get_title(&self) -> String {
+        format!("{} ({})", self.name, self.abbreviation)
+    }
 }
