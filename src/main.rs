@@ -18,10 +18,10 @@ mod units;
 
 struct Converter {
     unit_types: Vec<UnitType>,
-    from_unit_type_idx: usize,
-    from_unit_idx: usize,
+    from_unit_type_idx: Option<usize>,
+    from_unit_idx: Option<usize>,
     from_value: Option<Result<f64, ParseFloatError>>,
-    to_unit_idx: usize,
+    to_unit_idx: Option<usize>,
 }
 
 #[derive(Msg)]
@@ -49,10 +49,10 @@ impl Update for Win {
     fn model(_: &Relm<Self>, _: ()) -> Converter {
         Converter {
             unit_types: vec![length::init(), mass::init()],
-            from_unit_type_idx: 0,
-            from_unit_idx: 0,
+            from_unit_type_idx: None,
+            from_unit_idx: None,
             from_value: None,
-            to_unit_idx: 0,
+            to_unit_idx: None,
         }
     }
 
@@ -60,20 +60,31 @@ impl Update for Win {
         match event {
             Msg::FromComboChanged => {
                 let iter = self.from_combo.get_active_iter().unwrap();
-                let from_store = self.from_combo.get_model().unwrap();
+                let from_model = self.from_combo.get_model().unwrap();
 
-                let val1 = from_store.get_value(&iter, 1);
-                let from_unit_type_idx: u64 = val1.get().unwrap().unwrap();
-                let val2 = from_store.get_value(&iter, 2);
-                let from_unit_idx: u64 = val2.get().unwrap().unwrap();
+                let val0 = from_model.get_value(&iter, 0);
+                let from_title: &str = val0.get().unwrap().unwrap();
 
-                self.model.from_unit_type_idx = from_unit_type_idx as usize;
-                self.model.from_unit_idx = from_unit_idx as usize;
-                self.model.to_unit_idx = 0;
-                let to_store = Self::create_to_store(&self.model);
-                self.to_combo.set_model(Some(&to_store));
+                if from_title.eq("") {
+                    self.model.from_unit_type_idx = None;
+                    self.model.from_unit_idx = None;
+                    self.model.to_unit_idx = None;
+                } else {
+                    let val1 = from_model.get_value(&iter, 1);
+                    let from_unit_type_idx: u64 = val1.get().unwrap().unwrap();
+                    let val2 = from_model.get_value(&iter, 2);
+                    let from_unit_idx: u64 = val2.get().unwrap().unwrap();
+
+                    self.model.from_unit_type_idx = Some(from_unit_type_idx as usize);
+                    self.model.from_unit_idx = Some(from_unit_idx as usize);
+                }
+
+                self.model.to_unit_idx = None;
+                let to_model = Self::create_to_model(&self.model);
+                self.to_combo.set_model(Some(&to_model));
                 self.to_combo
-                    .set_active_iter(Some(&to_store.get_iter_first().unwrap()));
+                    .set_active_iter(Some(&to_model.get_iter_first().unwrap()));
+
                 self.write_output();
             }
             Msg::FromEntryChanged => {
@@ -88,12 +99,19 @@ impl Update for Win {
             Msg::Quit => gtk::main_quit(),
             Msg::ToComboChanged => {
                 let iter = self.to_combo.get_active_iter().unwrap();
-                let from_model = self.to_combo.get_model().unwrap();
+                let to_model = self.to_combo.get_model().unwrap();
 
-                let val1 = from_model.get_value(&iter, 1);
-                let to_unit_idx: u64 = val1.get().unwrap().unwrap();
+                let val0 = to_model.get_value(&iter, 0);
+                let to_title: &str = val0.get().unwrap().unwrap();
 
-                self.model.to_unit_idx = to_unit_idx as usize;
+                if to_title.eq("") {
+                    self.model.to_unit_idx = None;
+                } else {
+                    let val1 = to_model.get_value(&iter, 1);
+                    let to_unit_idx: u64 = val1.get().unwrap().unwrap();
+
+                    self.model.to_unit_idx = Some(to_unit_idx as usize);
+                }
                 self.write_output();
             }
         }
@@ -121,25 +139,21 @@ impl Widget for Win {
         let from_entry = gtk::Entry::new();
         hbox.pack_start(&from_entry, true, true, 0);
 
-        let from_store = Self::create_from_store(&model);
-        let from_combo = ComboBox::with_model(&from_store);
+        let from_model = Self::create_from_model(&model);
+        let from_combo = ComboBox::with_model(&from_model);
         from_combo.set_entry_text_column(0);
         from_combo.pack_start(&cell, true);
         from_combo.add_attribute(&cell, "text", 0);
         from_combo.set_active(Some(0));
-        from_combo.set_active_iter(Some(
-            &from_store
-                .iter_nth_child(Some(&from_store.get_iter_first().unwrap()), 0)
-                .unwrap(),
-        ));
+        from_combo.set_active_iter(Some(&from_model.get_iter_first().unwrap()));
         hbox.pack_start(&from_combo, true, true, 0);
 
-        let to_store = Self::create_to_store(&model);
-        let to_combo = ComboBox::with_model(&to_store);
+        let to_model = Self::create_to_model(&model);
+        let to_combo = ComboBox::with_model(&to_model);
         to_combo.set_entry_text_column(0);
         to_combo.pack_start(&cell, true);
         to_combo.add_attribute(&cell, "text", 0);
-        to_combo.set_active_iter(Some(&to_store.get_iter_first().unwrap()));
+        to_combo.set_active_iter(Some(&to_model.get_iter_first().unwrap()));
         hbox.pack_start(&to_combo, true, true, 0);
 
         let to_output = gtk::Label::new(None);
@@ -172,53 +186,73 @@ impl Widget for Win {
 }
 
 impl Win {
-    fn create_from_store(model: &Converter) -> gtk::TreeStore {
+    fn create_from_model(model: &Converter) -> gtk::TreeStore {
         let store = gtk::TreeStore::new(&[Type::String, Type::U64, Type::U64]);
 
+        let empty_row = store.append(None);
+        store.set(&empty_row, &[0], &[&""]);
+
         for (unit_type_idx, unit_type) in model.unit_types.iter().enumerate() {
-            let top = store.append(None);
-            store.set(&top, &[0], &[&unit_type.name]);
+            let unit_type_row = store.append(None);
+            store.set(&unit_type_row, &[0], &[&unit_type.name]);
 
             for (unit_idx, unit) in unit_type.units.iter().enumerate() {
-                let entries = store.append(Some(&top));
-                store.set(&entries, &[0], &[&unit.get_title()]);
-                store.set(&entries, &[1], &[&(unit_type_idx as u64)]);
-                store.set(&entries, &[2], &[&(unit_idx as u64)]);
+                let unit_row = store.append(Some(&unit_type_row));
+                store.set(&unit_row, &[0], &[&unit.get_title()]);
+                store.set(&unit_row, &[1], &[&(unit_type_idx as u64)]);
+                store.set(&unit_row, &[2], &[&(unit_idx as u64)]);
             }
         }
         store
     }
 
-    fn create_to_store(model: &Converter) -> gtk::TreeStore {
+    fn create_to_model(model: &Converter) -> gtk::TreeStore {
         let store = gtk::TreeStore::new(&[Type::String, Type::U64]);
-        let from_unit_type: &UnitType = &model.unit_types[model.from_unit_type_idx];
 
-        for (unit_idx, unit) in from_unit_type.units.iter().enumerate() {
-            let entries = store.append(None);
-            store.set(&entries, &[0], &[&unit.get_title()]);
-            store.set(&entries, &[1], &[&(unit_idx as u64)]);
+        let empty_row = store.append(None);
+        store.set(&empty_row, &[0], &[&""]);
+
+        match model.from_unit_type_idx {
+            None => {}
+            Some(from_unit_type_idx) => {
+                let from_unit_type: &UnitType = &model.unit_types[from_unit_type_idx];
+
+                for (unit_idx, unit) in from_unit_type.units.iter().enumerate() {
+                    let unit_row = store.append(None);
+                    store.set(&unit_row, &[0], &[&unit.get_title()]);
+                    store.set(&unit_row, &[1], &[&(unit_idx as u64)]);
+                }
+            }
         }
         store
     }
 
-    fn write_output(&self) {
-        let output_text: String = match self.model.from_value {
+    fn get_output(&self) -> String {
+        if self.model.from_unit_type_idx == None
+            || self.model.from_unit_idx == None
+            || self.model.to_unit_idx == None
+            || self.model.from_value == None
+        {
+            return String::from("");
+        }
+
+        match self.model.from_value {
             None => String::from(""),
             Some(Ok(v)) => {
-                let units = &self.model.unit_types[self.model.from_unit_type_idx].units;
-                units[self.model.from_unit_idx]
-                    .convert(v, &units[self.model.to_unit_idx])
+                let units = &self.model.unit_types[self.model.from_unit_type_idx.unwrap()].units;
+                units[self.model.from_unit_idx.unwrap()]
+                    .convert(v, &units[self.model.to_unit_idx.unwrap()])
                     .to_string()
             }
             Some(Err(_)) => String::from("test"),
-        };
-        self.to_output.set_text(&output_text);
+        }
+    }
+
+    fn write_output(&self) {
+        self.to_output.set_text(&self.get_output());
     }
 }
 
 fn main() {
-    let lengths_units = length::init();
-    dbg!(lengths_units.name);
-    dbg!(lengths_units.units[0].convert(50.0, &lengths_units.units[2]));
     Win::run(()).expect("Win::run failed");
 }
