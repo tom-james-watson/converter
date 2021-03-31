@@ -6,6 +6,12 @@ pub struct UnitType {
     pub units: Vec<Unit>,
 }
 
+impl PartialEq for UnitType {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
 pub struct Unit {
     pub name: String,
     pub abbreviation: String,
