@@ -3,6 +3,7 @@ use gtk::{
     prelude::ComboBoxExtManual,
     EditableSignals, EntryExt, GridExt, GtkWindowExt, OrientableExt,
     Orientation::{Horizontal, Vertical},
+    TreePath,
 };
 use gtk::{
     prelude::TreeStoreExtManual, BoxExt, CellLayoutExt, ComboBox, ComboBoxExt, ContainerExt, Entry,
@@ -77,7 +78,7 @@ impl Update for Win {
 
                 let re = Regex::new(r"^\s*(\d+)\s*(\w+)\s+(to|in)\s+(\w+)\s*$").unwrap();
                 if !re.is_match(&cmd_value) {
-                    dbg!("CmdEntryChanged ended");
+                    dbg!("CmdEntryChanged ended early");
                     return;
                 }
 
@@ -90,7 +91,7 @@ impl Update for Win {
                     self.get_unit_type_and_unit_idx_by_title(String::from(from_unit_title));
 
                 if !from_unit_type_idx.is_some() || !from_unit_idx.is_some() {
-                    dbg!("CmdEntryChanged ended");
+                    dbg!("CmdEntryChanged ended early");
                     return;
                 }
 
@@ -101,12 +102,17 @@ impl Update for Win {
                     self.get_unit_type_and_unit_idx_by_title(String::from(to_unit_title));
 
                 if !to_unit_type_idx.is_some() || !to_unit_idx.is_some() {
-                    dbg!("CmdEntryChanged ended");
+                    dbg!("CmdEntryChanged ended early");
                     return;
                 }
 
                 let to_unit_type_idx = to_unit_type_idx.unwrap();
                 let to_unit_idx = to_unit_idx.unwrap();
+
+                if from_unit_type_idx != to_unit_type_idx {
+                    dbg!("CmdEntryChanged ended early");
+                    return;
+                }
 
                 dbg!(from_unit_type_idx);
                 dbg!(from_unit_idx);
@@ -114,26 +120,25 @@ impl Update for Win {
                 dbg!(to_unit_idx);
 
                 if from_unit_type_idx != to_unit_type_idx {
-                    dbg!("CmdEntryChanged ended");
+                    dbg!("CmdEntryChanged ended early");
                     return;
                 }
 
+                self.model.unit_type_idx = from_unit_type_idx;
                 self.model.from_unit_idx = from_unit_idx;
-                self.set_from_combo();
                 self.model.to_unit_idx = to_unit_idx;
+
+                println!("cmd set to_unit_idx to {}", &to_unit_idx);
+
+                // TODO - only set these if necessary
+                self.set_unit_type_combo();
+                self.set_from_combo();
                 self.set_to_combo();
 
                 if self.model.from_value != Some(from_value.parse::<f64>()) {
                     self.from_entry.set_text(from_value);
                 }
                 dbg!("CmdEntryChanged ended");
-
-                // TODO - if we update all of the underlying model values here, then have all of
-                // the message handlers abort if the model value matches what is already in the
-                // widget, then we should avoid the unneeded runs of the message handlers.
-
-                // TODO - another option is to set some kind of self.is_writing whilst we do an
-                // update and return early from handlers if that is set 😕
             }
             Msg::FromComboChanged => {
                 dbg!("FromComboChanged");
@@ -142,7 +147,14 @@ impl Update for Win {
 
                 let val1 = from_model.get_value(&iter, 1);
                 let from_unit_idx: u64 = val1.get().unwrap().unwrap();
-                self.model.from_unit_idx = from_unit_idx as usize;
+                let from_unit_idx: usize = from_unit_idx as usize;
+
+                if from_unit_idx == self.model.from_unit_idx {
+                    dbg!("FromComboChanged ended early");
+                    return;
+                }
+
+                self.model.from_unit_idx = from_unit_idx;
 
                 self.write_to_value();
                 dbg!("FromComboChanged ended");
@@ -153,7 +165,7 @@ impl Update for Win {
                 let from_value_parsed = Some(from_value.parse::<f64>());
 
                 if self.model.from_value == from_value_parsed {
-                    dbg!("FromEntryChanged ended");
+                    dbg!("FromEntryChanged ended early");
                     return;
                 }
 
@@ -174,7 +186,17 @@ impl Update for Win {
 
                 let val1 = to_model.get_value(&iter, 1);
                 let to_unit_idx: u64 = val1.get().unwrap().unwrap();
-                self.model.to_unit_idx = to_unit_idx as usize;
+                let to_unit_idx: usize = to_unit_idx as usize;
+
+                dbg!(to_unit_idx);
+                dbg!(self.model.to_unit_idx);
+
+                if to_unit_idx == self.model.to_unit_idx {
+                    dbg!("ToComboChanged ended early");
+                    return;
+                }
+
+                self.model.to_unit_idx = to_unit_idx;
 
                 self.write_to_value();
                 dbg!("ToComboChanged ended");
@@ -185,7 +207,7 @@ impl Update for Win {
                 let to_value_parsed = Some(to_value.parse::<f64>());
 
                 if self.model.to_value == to_value_parsed {
-                    dbg!("ToEntryChanged ended");
+                    dbg!("ToEntryChanged ended early");
                     return;
                 }
 
@@ -206,8 +228,8 @@ impl Update for Win {
                 let val1 = unit_type_model.get_value(&iter, 1);
                 let unit_type_idx: u64 = val1.get().unwrap().unwrap();
 
-                if self.model.unit_type_idx != unit_type_idx as usize {
-                    dbg!("UnitTypeComboChanged ended");
+                if self.model.unit_type_idx == unit_type_idx as usize {
+                    dbg!("UnitTypeComboChanged ended early");
                     return;
                 }
 
@@ -408,6 +430,8 @@ impl Win {
                     units[self.model.from_unit_idx].abbreviation,
                     units[self.model.to_unit_idx].abbreviation
                 );
+                dbg!(&cmd_value);
+                dbg!(&self.model.cmd_value);
                 if self.model.cmd_value != cmd_value {
                     self.cmd_entry.set_text(&cmd_value);
                 }
@@ -429,17 +453,35 @@ impl Win {
     }
 
     fn set_from_combo(&self) {
+        println!("set_from_combo");
         let from_model = Self::create_units_model(&self.model);
         self.from_combo.set_model(Some(&from_model));
+
+        let path = TreePath::from_string(&self.model.from_unit_idx.to_string());
         self.from_combo
-            .set_active_iter(Some(&from_model.get_iter_first().unwrap()));
+            .set_active_iter(Some(&from_model.get_iter(&path).unwrap()));
     }
 
     fn set_to_combo(&self) {
+        println!("set_to_combo");
         let to_model = Self::create_units_model(&self.model);
         self.to_combo.set_model(Some(&to_model));
+
+        let path = TreePath::from_string(&self.model.to_unit_idx.to_string());
         self.to_combo
-            .set_active_iter(Some(&to_model.get_iter_first().unwrap()));
+            .set_active_iter(Some(&to_model.get_iter(&path).unwrap()));
+    }
+
+    fn set_unit_type_combo(&self) {
+        println!("set_unit_type_combo");
+        let to_model = Self::create_unit_type_model(&self.model);
+        self.unit_type_combo.set_model(Some(&to_model));
+
+        dbg!(&self.model.unit_type_idx);
+
+        let path = TreePath::from_string(&self.model.unit_type_idx.to_string());
+        self.unit_type_combo
+            .set_active_iter(Some(&to_model.get_iter(&path).unwrap()));
     }
 }
 
