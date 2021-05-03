@@ -76,7 +76,7 @@ impl Update for Win {
                 dbg!(&cmd_value);
                 self.model.cmd_value = cmd_value.clone();
 
-                let re = Regex::new(r"^\s*(\d+)\s*(\w+)\s+(to|in)\s+(\w+)\s*$").unwrap();
+                let re = Regex::new(r"^\s*(\d+(\.\d+|))\s*(\w+)\s+(to|in)\s+(\w+)\s*$").unwrap();
                 if !re.is_match(&cmd_value) {
                     dbg!("CmdEntryChanged ended early");
                     return;
@@ -84,8 +84,8 @@ impl Update for Win {
 
                 let captures = re.captures(&cmd_value).unwrap();
                 let from_value = &captures[1];
-                let from_unit_title = &captures[2];
-                let to_unit_title = &captures[4];
+                let from_unit_title = &captures[3];
+                let to_unit_title = &captures[5];
 
                 let (from_unit_type_idx, from_unit_idx) =
                     self.get_unit_type_and_unit_idx_by_title(String::from(from_unit_title));
@@ -134,6 +134,8 @@ impl Update for Win {
                 self.set_unit_type_combo();
                 self.set_from_combo();
                 self.set_to_combo();
+                self.write_to_value();
+                self.write_from_value();
 
                 if self.model.from_value != Some(from_value.parse::<f64>()) {
                     self.from_entry.set_text(from_value);
@@ -391,10 +393,10 @@ impl Win {
         let to_value = &self.get_to_value();
 
         if current_to_value.parse::<f64>() != to_value.parse::<f64>() {
+            dbg!("write_to_value");
             self.to_entry.set_text(to_value);
+            self.write_cmd();
         }
-
-        self.write_cmd();
     }
 
     fn get_from_value(&self) -> String {
@@ -414,10 +416,10 @@ impl Win {
         let from_value = &self.get_from_value();
 
         if current_from_value.parse::<f64>() != from_value.parse::<f64>() {
+            dbg!("write_from_value");
             self.from_entry.set_text(from_value);
+            self.write_cmd();
         }
-
-        self.write_cmd();
     }
 
     fn write_cmd(&self) {
